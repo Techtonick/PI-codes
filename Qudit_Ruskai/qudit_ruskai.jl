@@ -337,7 +337,7 @@ function vknew(n, q, d, λ, vλ)
     for i in 1:d
         #println("THIS IS $i")
         for k in 1:vλ
-            λnew = λ[k,[(q-i+2):q ; 1:(q-i+1)]]
+            λnew = λ[k,[i:q ; 1:(i-1)]]
             #println(λ[k,:])
             #println(λnew)
             if (mw(λ[k,:]) == (i-1)) && (mw(λnew) == 0) 
@@ -446,8 +446,8 @@ function ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
                 #println("first iter: $tester")
                 res = Optim.optimize(costcl, cs, LBFGS(linesearch=LineSearches.BackTracking()),
                             Optim.Options(iterations=6000,
-                                        g_tol=1e-6,
-                                        f_tol=1e-6,
+                                        g_tol=1e-8,
+                                        f_tol=1e-8,
                                         allow_f_increases=true,
                                         show_trace=true,
                                         callback=callback)
@@ -468,10 +468,10 @@ function ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
 end
 
 
-const n = 26;
+const n = 7;
 const q = 3;
 const d = 3;
-const t = 2;
+const t = 1;
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
 const ν = partitions_into_q_parts(2t,q);
@@ -481,14 +481,14 @@ const vν = size(ν)[1];
 const binoms_diff_cached = binoms_diff_precompute(n, q, t, λ, μ, ν, vλ, vμ, vν);
 const nonneg_cached = nonneg_precompute(q, λ, μ, ν, vλ, vμ, vν);
 const reps = 1;
-const ε = 1e-10;
-const optim_soltol = 1e-12;
+const ε = 1e-16;
+const optim_soltol = 1e-18;
 const vec_knew = vknew(n, q, d, λ, vλ)[1]
 const vec_λnew = vknew(n, q, d, λ, vλ)[2]
 const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
 println("START!")
 
-#= res_loop_min = []; thread_arr = [];
+res_loop_min = []; thread_arr = [];
 @threads for i in 1:8
     optim_res = ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     println("iteration $i: min val = $(optim_res)")
@@ -497,11 +497,11 @@ println("START!")
 end
 min_val,min_loc = findmin(res_loop_min)
 println("THE VALUE OF min_val IS:")
-@show min_val =#
+@show min_val
 
 
 
-#FOR n=26, q=d=3, t=2:
+#FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
 #GradientDescent takes 9s for one step 
 
@@ -510,7 +510,7 @@ println("THE VALUE OF min_val IS:")
 
 #BENCHMARKING
 
-function stupid()
+#= function stupid()
     num_var = Int(vλ / q)
     cb = ones(num_var) #+ im*ones(num_var) # this is for complex
     cs = zeros(ComplexF64, d*vλ)
@@ -536,7 +536,7 @@ end
 #@profview testf(10000)
 #@time testf(10000)
 
-@btime costr(n, q, d, t, cs, cs_copy, λ, μ, ν, vλ, vμ, vν)
+@btime costr(n, q, d, t, cs, cs_copy, λ, μ, ν, vλ, vμ, vν) =#
 
 "END"
 
