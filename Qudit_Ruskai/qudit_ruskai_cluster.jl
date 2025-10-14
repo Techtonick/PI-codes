@@ -1,3 +1,5 @@
+# The main difference from qudit_ruskai.jl is that here we parallelize operations to make the code friendly for running on a cluster
+
 using LinearAlgebra
 using Optim 
 using LineSearches
@@ -10,6 +12,12 @@ using HomotopyContinuation
 using Base.Threads
 using SpecialFunctions
 #gr(size = (700, 700))
+using Transducers
+using Folds
+using OnlineStats
+using FLoops
+using MicroCollections
+using BangBang 
 
 function partitions_into_q_parts(n, q)
     # Start with an array of q parts filled with zeros
@@ -419,7 +427,44 @@ end =#
 
 callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
 
-function ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
+function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
+    #Preallocate before loops
+    num_var = Int(vλ / q)
+    codewords_copy = zeros(ComplexF64, d*vλ)
+    costcl(codewords) = costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    cs = zeros(ComplexF64, d*vλ)
+    cb = zeros(ComplexF64, num_var)
+    counter = 1
+        #@time begin
+            @views cb .= normalize(rand(ComplexF64, num_var)) # this is for complex
+            counter = 1
+            for l in 1:vλ
+                if vec_knew[1,l] ≠ 0
+                    cs[l] = cb[Int(counter)]
+                    counter += 1
+                end
+            end
+        #end
+        #println("start: $cs")
+        #tester = costrtest(n, q, d, t, cs, λ, μ, ν, vλ, vμ, vν)
+        #println(norm(cs))
+        @time begin
+            #println("first iter: $tester")
+            res = Optim.optimize(costcl, cs, LBFGS(linesearch=LineSearches.BackTracking()),
+                        Optim.Options(iterations=10000,
+                                    g_tol=1e-8,
+                                    f_tol=1e-8,
+                                    allow_f_increases=true,
+                                    show_trace=true,
+                                    callback=callback)
+                            )
+        end
+        #println("iteration $k: min val = $(res.minimum)")    
+    minval = res.minimum
+    return minval
+end
+
+#= function ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
     num_var = Int(vλ / q)
     codewords_copy = zeros(ComplexF64, d*vλ)
@@ -465,13 +510,15 @@ function ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     minval,minloc = findmin(res_loop_minimum)
     minx0 = res_loop_minimizer[minloc]
     return minval
-end
+end =#
 
 
-const n = 7;
+const n = 4;
+const t = 1;
+const range_n = 4:3:34;
+const range_t = 1:3;
 const q = 3;
 const d = 3;
-const t = 1;
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
 const ν = partitions_into_q_parts(2t,q);
@@ -480,32 +527,38 @@ const vμ = size(μ)[1];
 const vν = size(ν)[1];
 const binoms_diff_cached = binoms_diff_precompute(n, q, t, λ, μ, ν, vλ, vμ, vν);
 const nonneg_cached = nonneg_precompute(q, λ, μ, ν, vλ, vμ, vν);
-const reps = 1;
-const ε = 1e-16;
+const reps = 10;
 const optim_soltol = 1e-18;
 const vec_knew = vknew(n, q, d, λ, vλ)[1]
 const vec_λnew = vknew(n, q, d, λ, vλ)[2]
 const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
-println("START!")
 
-res_loop_min = []; thread_arr = [];
-@threads for i in 1:8
-    optim_res = ruskai_optim(reps, ε, n, q, d, t, λ, μ, ν, vλ, vμ, vν)
-    println("iteration $i: min val = $(optim_res)")
-    push!(thread_arr, threadid())
-    push!(res_loop_min, optim_res)
+#= combos = Iterators.product(range_t, range_n, 1:reps)
+all_results = Folds.map(((t,n,i),) -> ((t,n), ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)), combos) =#
+
+function testf(n,t)
+    return n^2*t + rand()
 end
-min_val,min_loc = findmin(res_loop_min)
-println("THE VALUE OF min_val IS:")
-@show min_val
 
-
+combos = Iterators.product(1:reps, range_n, range_t)
+all_results = Folds.map(((i,n,t),) -> ((n,t), testf(n,t)), combos)
 
 #FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
 #GradientDescent takes 9s for one step 
 
+for list_end in reps:reps:length(all_results)
+    minlist = getindex.(all_results[(list_end-reps+1):list_end], 2)
+    min_val, min_loc = Folds.findmin(minlist)
+    (ln,lt) = all_results[list_end][1]
+    valout = "n=$ln, q=d=$q, t=$lt, start points = $reps, optimization callback = $optim_soltol, optimization minimum = $min_val"
+    open("Qudit_Ruskai/cluster_output.txt", "a") do file 
+        write(file, valout, "\n")
+    end
+end
 
+
+"END"
 
 
 #BENCHMARKING
@@ -537,8 +590,6 @@ end
 #@time testf(10000)
 
 @btime costr(n, q, d, t, cs, cs_copy, λ, μ, ν, vλ, vμ, vν) =#
-
-"END"
 
 #0.115673 seconds (1000 allocations: 15.625 KiB)
 
@@ -597,7 +648,3 @@ end =#
 #println(" ")
 #println(cs)
 #println(costrtest(n, q, d, t, cs, λ, μ, ν, vλ, vμ, vν))
-
-
-
-
