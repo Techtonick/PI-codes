@@ -394,7 +394,7 @@ end
 
 #BENCHMARKING
 
-#= function stupid()
+#= function test_b()
     num_var = Int(vλ / q)
     cb = ones(num_var) #+ im*ones(num_var) # this is for complex
     cs = zeros(ComplexF64, d*vλ)
@@ -408,7 +408,7 @@ end
     return cs
 end
 
-cs = stupid()
+cs = test_b()
 cs_copy = zeros(ComplexF64, d*vλ)
 
 function testf(reps)
@@ -444,7 +444,7 @@ test(1000000)
 @profview test(1000000) =#
 
 #@show vec_knew
-#= function stupid()
+#= function test_c()
     num_var = Int(vλ / q)
     #@var bo5x0x0
     #@var bo2x3x0
