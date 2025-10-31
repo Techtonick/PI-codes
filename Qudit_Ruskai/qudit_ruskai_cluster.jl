@@ -218,7 +218,6 @@ function partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     return pos
 end
 
-
 function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
     # Preallocate outside loops
@@ -263,6 +262,73 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
     end
     
     return outval1 + outval2
+
+end
+
+function rules_grad_1(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
+        # Preallocate outside loops
+    local_num_var_params = length(codewords)
+    local_codeword_length = Int(local_num_var_params/d)
+    grad = zeros(local_num_var_params)
+
+    @inbounds for i in 1:d
+        @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
+        @views grad_i = grad[(1+(i-1)*local_codeword_length):local_codeword_length*i]
+        s = codewords_i' * codewords_i - 1
+
+        for iλ in 1:vλ
+            grad_i[iλ] = 2*codewords_i[iλ]*s
+        end
+
+    end
+    
+    return grad
+
+end
+
+function rules_grad_2(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
+
+    # Preallocate outside loops
+    local_num_var_params = length(codewords)
+    local_codeword_length = Int(local_num_var_params/d)
+    (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
+    binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
+    nonneg_cached = arr_nonneg_cached[cn,ct]
+    pos_cached = arr_pos_cached[cn,ct]
+    grad = zeros(local_num_var_params)
+        
+    @inbounds for i in 1:d-1
+        @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
+        @views grad_i = grad[(1+(i-1)*local_codeword_length):local_codeword_length*i]
+
+        for j in i+1:d
+            @views codewords_j = codewords[(1+(j-1)*local_codeword_length):local_codeword_length*j]
+            @views grad_j = grad[(1+(j-1)*local_codeword_length):local_codeword_length*j]
+            
+            for iλ1 in 1:vλ
+                for iλ2 in 1:vλ
+                    grad_i[iλ1] += @fastmath codewords_j[iλ2]' * codewords_i[iλ2] * codewords_j[iλ1]
+                    grad_j[iλ1] += @fastmath codewords_i[iλ2]' * codewords_j[iλ2] * codewords_i[iλ1]
+
+                    for k in 1:vμ
+                        for l in 1:vν
+                            if (nonneg_cached[iλ1,l,k] != 0) && (nonneg_cached[iλ2,l,k] != 0)
+
+                                grad_i[iλ1] += @fastmath (codewords_i[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_i[iλ2] - codewords_i[pos_cached[iλ1,l,k]] * codewords_j[pos_cached[iλ2,l,k]]' * codewords_j[iλ2]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
+                                grad_j[iλ1] += @fastmath (codewords_i[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_j[iλ2] + codewords_j[pos_cached[iλ1,l,k]] * codewords_j[pos_cached[iλ2,l,k]]' * codewords_j[iλ2] - codewords_j[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_i[iλ2]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
+                                grad_i[pos_cached[iλ1,l,k]] += @fastmath (codewords_j[iλ1] * codewords_j[iλ2]' * codewords_i[pos_cached[iλ2,l,k]] + codewords_i[iλ1] * (codewords_i[iλ2]' * codewords_i[pos_cached[iλ2,l,k]] - codewords_j[iλ2]' * codewords_j[pos_cached[iλ2,l,k]])) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
+                                grad_j[pos_cached[iλ1,l,k]] += @fastmath codewords_j[iλ1] * (codewords_j[iλ2]' * codewords_j[pos_cached[iλ2,l,k]] - codewords_i[iλ2]' * codewords_i[pos_cached[iλ2,l,k]]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
+
+                            end
+                        end
+                    end
+
+                end
+            end
+        end
+    end
+    
+    return grad
 
 end
 
@@ -313,6 +379,25 @@ function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     end   
     return rules1(n,q,d,codewords_copy) + rule4_5(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
 end
+
+# Define cost function gradient with fixing codeword coefficients according to Ruskai codes
+function grad_costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    cn = round(Int, (n-n_min)/3 + 1)
+    vec_knew = arr_vec_knew[cn]
+    vec_λnew = arr_vec_λnew[cn]
+    for i in 1:d
+        for k in 1:vλ
+            if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
+                codewords_copy[(k+(i-1)*vλ)] = codewords[Int(vec_knew[i,k])]
+            else
+                codewords_copy[(k+(i-1)*vλ)] = 0
+            end
+        end
+    end   
+    return rules_grad_1(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν) + rules_grad_2(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
+end
+
+#ToDo: Plug in the gradient into the optimizer, write the approximate (diagonal) Hessian and also plug it in
 
 callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
 
