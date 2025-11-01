@@ -399,8 +399,6 @@ function grad_costr!(grad, n, q, d, t, codewords, codewords_copy, λ, μ, ν, v�
     return grad
 end
 
-#ToDo: Plug in the gradient into the optimizer, write the approximate (diagonal) Hessian and also plug it in
-
 callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
 
 function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
@@ -438,11 +436,11 @@ end
 
 const q = 3;
 const d = 3;
-const n_min = 10;
-const n_max = 13;
+const n_min = 16;
+const n_max = 16;
 const range_n = n_min:q:n_max;
-const t_min = 2;
-const t_max = 2;
+const t_min = 1;
+const t_max = 1;
 const range_t = t_min:t_max;
 const reps = 1;
 const optim_soltol = 1e-18;
@@ -475,12 +473,33 @@ end
 #LBFGS takes 5s for one step of optim
 #GradientDescent takes 9s for one step 
 
-"END"
-
-
+#n=10, t=1, optim steps = 10000, LBFGS, yes precomputed grad!, btime = 16.113 seconds
+#n=10, t=1, optim steps = 10000, LBFGS, no precomputed grad!, btime = 5.533 seconds
 
 
 #BENCHMARKING
+
+#= @profview ruskai_optim(range_n[1], q, d, range_t[1], aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
+@btime ruskai_optim(range_n[1], q, d, range_t[1], aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
+
+cdwrds_copy = zeros(ComplexF64, d*avλ[1])
+num_var = Int(avλ[1] / q)
+cs = zeros(ComplexF64, d*avλ[1])
+cb = zeros(ComplexF64, num_var)
+counter = 1
+@views cb .= normalize(rand(ComplexF64, num_var))
+@views vec_knew = arr_vec_knew[1]
+counter = 1
+for l in 1:avλ[1]
+    if vec_knew[1,l] ≠ 0
+        cs[l] = cb[Int(counter)]
+        counter += 1
+    end
+end
+@profview grad_costr!(zeros(ComplexF64, d*avλ[1]), range_n[1], q, d, range_t[1], cs, cdwrds_copy, aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
+ =#
+
+"END"
 
 #= function test_b()
     num_var = Int(vλ / q)

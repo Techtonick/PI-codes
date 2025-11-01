@@ -2,3 +2,10 @@ Optimization iterations = 10000 for all runs
 n=4, q=d=3, t=1, start points = 8, optimization callback = 1.0e-18, optimization minimum = 0.22537339223284814
 n=7, q=d=3, t=1, start points = 8, optimization callback = 1.0e-18, optimization minimum = 3.9554478251049276e-15
 n=10, q=d=3, t=1, start points = 8, optimization callback = 1.0e-18, optimization minimum = 5.636128079889123e-14
+n=4, q=d=3, t=2, start points = 1, optimization callback = 1.0e-18, optimization minimum = 0.06122448979591864
+n=7, q=d=3, t=2, start points = 1, optimization callback = 1.0e-18, optimization minimum = 0.009895232757783336
+n=4, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 0.2253733927268583
+n=7, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 9.99940966378559e-15
+n=10, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 9.599255323575789e-14
+n=10, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 5.720795768006609e-14
+n=16, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 2.053427574302945e-15
