@@ -198,7 +198,7 @@ end
 
 function partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    nonneg_cached = arr_nonneg_cached[cn,ct]
+    @views nonneg_cached = arr_nonneg_cached[cn,ct]
     memocache = Dict{Tuple{Int,Int}, Int}()
     λ_minus_μ_plus_ν = zeros(Int64,q)
     pos = zeros(Int64,vλ,vν,vμ)
@@ -226,9 +226,9 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
     outval1 = 0.0
     outval2 = 0.0
     (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
-    nonneg_cached = arr_nonneg_cached[cn,ct]
-    pos_cached = arr_pos_cached[cn,ct]
+    @views binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
+    @views nonneg_cached = arr_nonneg_cached[cn,ct]
+    @views pos_cached = arr_pos_cached[cn,ct]
         
     @inbounds for i in 1:d-1
         @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
@@ -265,11 +265,12 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
 end
 
-function rules_grad_1(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
-        # Preallocate outside loops
+#Storage version of the gradient functions, to be non-allocating:
+
+function rules_grad_1!(grad, n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
+    # Preallocate outside loops
     local_num_var_params = length(codewords)
     local_codeword_length = Int(local_num_var_params/d)
-    grad = zeros(local_num_var_params)
 
     @inbounds for i in 1:d
         @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
@@ -286,16 +287,15 @@ function rules_grad_1(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
 end
 
-function rules_grad_2(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
+function rules_grad_2!(grad, n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
     # Preallocate outside loops
     local_num_var_params = length(codewords)
     local_codeword_length = Int(local_num_var_params/d)
     (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
-    nonneg_cached = arr_nonneg_cached[cn,ct]
-    pos_cached = arr_pos_cached[cn,ct]
-    grad = zeros(local_num_var_params)
+    @views binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
+    @views nonneg_cached = arr_nonneg_cached[cn,ct]
+    @views pos_cached = arr_pos_cached[cn,ct]
         
     @inbounds for i in 1:d-1
         @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
@@ -366,8 +366,8 @@ end
 # Define cost function with fixing codeword coefficients according to Ruskai codes
 function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     cn = round(Int, (n-n_min)/3 + 1)
-    vec_knew = arr_vec_knew[cn]
-    vec_λnew = arr_vec_λnew[cn]
+    @views vec_knew = arr_vec_knew[cn]
+    @views vec_λnew = arr_vec_λnew[cn]
     for i in 1:d
         for k in 1:vλ
             if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
@@ -380,11 +380,11 @@ function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     return rules1(n,q,d,codewords_copy) + rule4_5(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
 end
 
-# Define cost function gradient with fixing codeword coefficients according to Ruskai codes
-function grad_costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+# Define non-allocating cost function gradient with fixing codeword coefficients according to Ruskai codes
+function grad_costr!(grad, n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     cn = round(Int, (n-n_min)/3 + 1)
-    vec_knew = arr_vec_knew[cn]
-    vec_λnew = arr_vec_λnew[cn]
+    @views vec_knew = arr_vec_knew[cn]
+    @views vec_λnew = arr_vec_λnew[cn]
     for i in 1:d
         for k in 1:vλ
             if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
@@ -393,8 +393,10 @@ function grad_costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ,
                 codewords_copy[(k+(i-1)*vλ)] = 0
             end
         end
-    end   
-    return rules_grad_1(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν) + rules_grad_2(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
+    end
+    rules_grad_1!(grad,n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
+    rules_grad_2!(grad,n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
+    return grad
 end
 
 #ToDo: Plug in the gradient into the optimizer, write the approximate (diagonal) Hessian and also plug it in
@@ -404,10 +406,11 @@ callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return fal
 function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
     cn = round(Int, (n-n_min)/3 + 1)
-    vec_knew = arr_vec_knew[cn]
+    @views vec_knew = arr_vec_knew[cn]
     num_var = Int(vλ / q)
     codewords_copy = zeros(ComplexF64, d*vλ)
     costcl(codewords) = costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    grad_costcl!(grad,codewords) = grad_costr!(grad, n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     cs = zeros(ComplexF64, d*vλ)
     cb = zeros(ComplexF64, num_var)
     counter = 1
@@ -420,7 +423,7 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
                 end
             end
         @time begin
-            res = Optim.optimize(costcl, cs, LBFGS(linesearch=LineSearches.BackTracking()),
+            res = Optim.optimize(costcl, grad_costcl!, cs, LBFGS(linesearch=LineSearches.BackTracking(), P = nothing), autodiff = :false,
                         Optim.Options(iterations=10000,
                                     g_tol=1e-8,
                                     f_tol=1e-8,
@@ -435,13 +438,13 @@ end
 
 const q = 3;
 const d = 3;
-const n_min = 4;
-const n_max = 10;
+const n_min = 10;
+const n_max = 13;
 const range_n = n_min:q:n_max;
-const t_min = 1;
-const t_max = 1;
+const t_min = 2;
+const t_max = 2;
 const range_t = t_min:t_max;
-const reps = 8;
+const reps = 1;
 const optim_soltol = 1e-18;
 const aλ = [partitions_into_q_parts(n,q) for n=range_n];
 const aμ = [partitions_into_q_parts(2t,q) for t=range_t];
