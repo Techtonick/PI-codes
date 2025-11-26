@@ -433,7 +433,7 @@ end
 
 #BENCHMARKING
 
-@profview ruskai_optim(range_n[1], q, d, range_t[1], aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
+#= @profview ruskai_optim(range_n[1], q, d, range_t[1], aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
 @btime ruskai_optim(range_n[1], q, d, range_t[1], aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
 
 cdwrds_copy = zeros(ComplexF64, d*avλ[1])
@@ -449,7 +449,7 @@ for l in 1:avλ[1]
         cs[l] = cb[Int(counter)]
         counter += 1
     end
-end
+end =#
 
 
 "END"
