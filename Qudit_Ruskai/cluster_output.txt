@@ -9,3 +9,12 @@ n=7, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization
 n=10, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 9.599255323575789e-14
 n=10, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 5.720795768006609e-14
 n=16, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 2.053427574302945e-15
+n=7, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 7.390173139286123e-15
+
+Autodiff, true variable vector length (optimized):
+n=7, q=d=3, t=1, start points = 1, optimization callback = 1.0e-18, optimization minimum = 4.822634827624132e-16
+n=7, q=d=3, t=1, start points = 8, optimization callback = 1.0e-18, optimization minimum = 1.6911411456746342e-16
+n=10, q=d=3, t=1, start points = 8, optimization callback = 1.0e-18, optimization minimum = 1.2447645539697947e-15
+n=10, q=d=3, t=2, start points = 8, optimization callback = 1.0e-18, optimization minimum = 0.0041214884832324016
+n=25, q=d=3, t=2, start points = 1, optimization callback = 1.0e-18, optimization minimum = 1.4743043832532147e-12
+n=10, q=d=3, t=2, start points = 2, optimization callback = 1.0e-18, optimization minimum = 0.00470276689922501

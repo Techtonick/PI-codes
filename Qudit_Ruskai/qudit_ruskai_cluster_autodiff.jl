@@ -265,73 +265,6 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
 end
 
-#Storage version of the gradient functions, to be non-allocating:
-
-function rules_grad_1!(grad, n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
-    # Preallocate outside loops
-    local_num_var_params = length(codewords)
-    local_codeword_length = Int(local_num_var_params/d)
-
-    @inbounds for i in 1:d
-        @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
-        @views grad_i = grad[(1+(i-1)*local_codeword_length):local_codeword_length*i]
-        s = codewords_i' * codewords_i - 1
-
-        for iλ in 1:vλ
-            grad_i[iλ] = 2*codewords_i[iλ]*s
-        end
-
-    end
-    
-    return grad
-
-end
-
-function rules_grad_2!(grad, n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν) #Only run the ruled_grad for non-zero insances! This would help by a factor of 2/3 (maybe)
-
-    # Preallocate outside loops
-    local_num_var_params = length(codewords)
-    local_codeword_length = Int(local_num_var_params/d)
-    (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    @views binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
-    @views nonneg_cached = arr_nonneg_cached[cn,ct]
-    @views pos_cached = arr_pos_cached[cn,ct]
-        
-    @inbounds for i in 1:d-1
-        @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
-        @views grad_i = grad[(1+(i-1)*local_codeword_length):local_codeword_length*i]
-
-        for j in i+1:d
-            @views codewords_j = codewords[(1+(j-1)*local_codeword_length):local_codeword_length*j]
-            @views grad_j = grad[(1+(j-1)*local_codeword_length):local_codeword_length*j]
-            
-            for iλ1 in 1:vλ
-                for iλ2 in 1:vλ
-                    grad_i[iλ1] += @fastmath codewords_j[iλ2]' * codewords_i[iλ2] * codewords_j[iλ1]
-                    grad_j[iλ1] += @fastmath codewords_i[iλ2]' * codewords_j[iλ2] * codewords_i[iλ1]
-
-                    for k in 1:vμ
-                        for l in 1:vν #Switch the l and k since Julia is column major (run the for loiops in defifirent order)
-                            if (nonneg_cached[iλ1,l,k] != 0) && (nonneg_cached[iλ2,l,k] != 0)
-
-                                grad_i[iλ1] += @fastmath (codewords_i[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_i[iλ2] - codewords_i[pos_cached[iλ1,l,k]] * codewords_j[pos_cached[iλ2,l,k]]' * codewords_j[iλ2]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
-                                grad_j[iλ1] += @fastmath (codewords_i[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_j[iλ2] + codewords_j[pos_cached[iλ1,l,k]] * codewords_j[pos_cached[iλ2,l,k]]' * codewords_j[iλ2] - codewords_j[pos_cached[iλ1,l,k]] * codewords_i[pos_cached[iλ2,l,k]]' * codewords_i[iλ2]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
-                                grad_i[pos_cached[iλ1,l,k]] += @fastmath (codewords_j[iλ1] * codewords_j[iλ2]' * codewords_i[pos_cached[iλ2,l,k]] + codewords_i[iλ1] * (codewords_i[iλ2]' * codewords_i[pos_cached[iλ2,l,k]] - codewords_j[iλ2]' * codewords_j[pos_cached[iλ2,l,k]])) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
-                                grad_j[pos_cached[iλ1,l,k]] += @fastmath codewords_j[iλ1] * (codewords_j[iλ2]' * codewords_j[pos_cached[iλ2,l,k]] - codewords_i[iλ2]' * codewords_i[pos_cached[iλ2,l,k]]) * binoms_diff_cached[iλ1,l,k] * binoms_diff_cached[iλ2,l,k]
-                                
-                            end
-                        end
-                    end
-
-                end
-            end
-        end
-    end
-    
-    return grad
-
-end
-
 function replace_element(arr, new_element, pos)
     outarr = []
     for i in eachindex(arr)
@@ -345,7 +278,7 @@ function replace_element(arr, new_element, pos)
 end
 
 #Supplemental function for the cost function
-function vknew(n, q, d, λ, vλ)
+function vknew(n, q, d, λ, vλ) 
     # Preallocate outside loops
     memocache = Dict{Tuple{Int,Int}, Int}()
     kvec = zeros(Int, d, vλ)
@@ -363,9 +296,27 @@ function vknew(n, q, d, λ, vλ)
     return [kvec, λnewvec]
 end
 
-# Define cost function with fixing codeword coefficients according to Ruskai codes
+#Precompute positions of zeros everywhere
+function zeros_precompute(n, q, d, λ, vλ)
+    cn = round(Int, (n-n_min)/q + 1)
+    @views vec_knew = arr_vec_knew[cn]
+    @views vec_λnew = arr_vec_λnew[cn]
+    zeros_pos = zeros(ComplexF64, d*vλ)
+    for i in 1:d
+        for k in 1:vλ
+            if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
+                zeros_pos[(k+(i-1)*vλ)] = 1
+            else
+                zeros_pos[(k+(i-1)*vλ)] = 0
+            end
+        end
+    end
+    return zeros_pos
+end
+
+#Define cost function with fixing codeword coefficients according to Ruskai codes (padded)
 function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    cn = round(Int, (n-n_min)/3 + 1)
+    cn = round(Int, (n-n_min)/q + 1)
     @views vec_knew = arr_vec_knew[cn]
     @views vec_λnew = arr_vec_λnew[cn]
     for i in 1:d
@@ -380,48 +331,47 @@ function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
     return rules1(n,q,d,codewords_copy) + rule4_5(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
 end
 
-# Define non-allocating cost function gradient with fixing codeword coefficients according to Ruskai codes
-function grad_costr!(grad, n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    cn = round(Int, (n-n_min)/3 + 1)
+#Cost function of free variables, optimized with precomputed zeros vector
+function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    cn = round(Int, (n-n_min)/q + 1)
     @views vec_knew = arr_vec_knew[cn]
     @views vec_λnew = arr_vec_λnew[cn]
-    for i in 1:d
+    @views zeros_pos = arr_zeros_cached[cn]
+    counter = 1
+    for k in 1:vλ
+        if zeros_pos[k] == 1
+            codewords_copy[k] = free_vars[counter]
+            counter += 1
+        else
+            codewords_copy[k] = 0
+        end
+    end
+
+    for i in 2:d
         for k in 1:vλ
-            if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
-                codewords_copy[(k+(i-1)*vλ)] = codewords[Int(vec_knew[i,k])]
+            if zeros_pos[(k+(i-1)*vλ)] == 1
+                codewords_copy[(k+(i-1)*vλ)] = codewords_copy[Int(vec_knew[i,k])]
             else
                 codewords_copy[(k+(i-1)*vλ)] = 0
             end
         end
-    end
-    rules_grad_1!(grad,n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
-    rules_grad_2!(grad,n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
-    return grad
+    end   
+
+    return rules1(n,q,d,codewords_copy) + rule4_5(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
 end
 
 callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
 
-function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν) #Don't pad the variable in the gradient, only keep the free variable vector of length vλ/q^2
+function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
-    cn = round(Int, (n-n_min)/3 + 1)
+    cn = round(Int, (n-n_min)/q + 1)
     @views vec_knew = arr_vec_knew[cn]
     num_var = Int(vλ / q)
     codewords_copy = zeros(ComplexF64, d*vλ)
-    costcl(codewords) = costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    grad_costcl!(grad,codewords) = grad_costr!(grad, n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    cs = zeros(ComplexF64, d*vλ)
-    cb = zeros(ComplexF64, num_var)
-    counter = 1
-            @views cb .= normalize(rand(ComplexF64, num_var))
-            counter = 1
-            for l in 1:vλ
-                if vec_knew[1,l] ≠ 0
-                    cs[l] = cb[Int(counter)]
-                    counter += 1
-                end
-            end
+    costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+        free_cb = normalize(rand(ComplexF64, num_var))
         @time begin
-            res = Optim.optimize(costcl, grad_costcl!, cs, LBFGS(linesearch=LineSearches.BackTracking(), P = nothing), autodiff = :false,
+            res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
                         Optim.Options(iterations=10000,
                                     g_tol=1e-8,
                                     f_tol=1e-8,
@@ -436,13 +386,13 @@ end
 
 const q = 3;
 const d = 3;
-const n_min = 7;
-const n_max = 7;
+const n_min = 10;
+const n_max = 10;
 const range_n = n_min:q:n_max;
-const t_min = 1;
-const t_max = 1;
+const t_min = 2;
+const t_max = 2;
 const range_t = t_min:t_max;
-const reps = 1;
+const reps = 2;
 const optim_soltol = 1e-18;
 const aλ = [partitions_into_q_parts(n,q) for n=range_n];
 const aμ = [partitions_into_q_parts(2t,q) for t=range_t];
@@ -454,6 +404,7 @@ const arr_binoms_diff_cached = [binoms_diff_precompute(range_n[cn], q, range_t[c
 const arr_nonneg_cached = [nonneg_precompute(q, aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct]) for cn=eachindex(range_n), ct=eachindex(range_t)];
 const arr_vec_knew = [vknew(range_n[cn], q, d, aλ[cn], avλ[cn])[1] for cn=eachindex(range_n)];
 const arr_vec_λnew = [vknew(range_n[cn], q, d, aλ[cn], avλ[cn])[2] for cn=eachindex(range_n)];
+const arr_zeros_cached = [zeros_precompute(range_n[cn], q, d, aλ[cn], avλ[cn]) for cn=eachindex(range_n)];
 const arr_pos_cached = [partition_pos_precompute(range_n[cn], q, d, range_t[ct], aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct]) for cn=eachindex(range_n), ct=eachindex(range_t)];
 
 combos = Iterators.product(1:reps, eachindex(range_n), eachindex(range_t));
@@ -476,6 +427,9 @@ end
 #n=10, t=1, optim steps = 10000, LBFGS, yes precomputed grad!, btime = 16.113 seconds
 #n=10, t=1, optim steps = 10000, LBFGS, no precomputed grad!, btime = 5.533 seconds
 
+#FOR n=25, q=d=3, t=2:
+#LBFGS takes 0.277 s for one step of optim after removing padding and passing only free variables (cost function evaluation still padded, so suboptimal)
+#Average speedup of ~18 times!
 
 #BENCHMARKING
 
@@ -496,7 +450,6 @@ for l in 1:avλ[1]
         counter += 1
     end
 end
-@profview grad_costr!(zeros(ComplexF64, d*avλ[1]), range_n[1], q, d, range_t[1], cs, cdwrds_copy, aλ[1], aμ[1], aν[1], avλ[1], avμ[1], avν[1])
 
 
 "END"
