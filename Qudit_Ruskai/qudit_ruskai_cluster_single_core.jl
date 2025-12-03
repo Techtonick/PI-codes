@@ -8,7 +8,6 @@ using Combinatorics
 using PlotlyJS
 using BenchmarkTools
 using JLD2
-using HomotopyContinuation
 using Base.Threads
 using SpecialFunctions
 #gr(size = (700, 700))
@@ -18,6 +17,7 @@ using OnlineStats
 using FLoops
 using MicroCollections
 using BangBang 
+using FileIO
 
 function partitions_into_q_parts(n, q)
     # Start with an array of q parts filled with zeros
@@ -197,8 +197,6 @@ function partition_find_fast(partition, n, q, memo)
 end
 
 function partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
-    (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    @views nonneg_cached = arr_nonneg_cached[cn,ct]
     memocache = Dict{Tuple{Int,Int}, Int}()
     λ_minus_μ_plus_ν = zeros(Int64,q)
     pos = zeros(Int64,vλ,vν,vμ)
@@ -225,10 +223,6 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
     local_codeword_length = Int(local_num_var_params/d)
     outval1 = 0.0
     outval2 = 0.0
-    (cn, ct) = (round(Int, (n-n_min)/3 + 1), Int(t-t_min+1))
-    @views binoms_diff_cached = arr_binoms_diff_cached[cn,ct]
-    @views nonneg_cached = arr_nonneg_cached[cn,ct]
-    @views pos_cached = arr_pos_cached[cn,ct]
         
     @inbounds for i in 1:d-1
         @views codewords_i = codewords[(1+(i-1)*local_codeword_length):local_codeword_length*i]
@@ -298,9 +292,6 @@ end
 
 #Precompute positions of zeros everywhere
 function zeros_precompute(n, q, d, λ, vλ)
-    cn = round(Int, (n-n_min)/q + 1)
-    @views vec_knew = arr_vec_knew[cn]
-    @views vec_λnew = arr_vec_λnew[cn]
     zeros_pos = zeros(ComplexF64, d*vλ)
     for i in 1:d
         for k in 1:vλ
@@ -316,9 +307,6 @@ end
 
 #Define cost function with fixing codeword coefficients according to Ruskai codes (padded)
 function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    cn = round(Int, (n-n_min)/q + 1)
-    @views vec_knew = arr_vec_knew[cn]
-    @views vec_λnew = arr_vec_λnew[cn]
     for i in 1:d
         for k in 1:vλ
             if (mw(λ[k,:]) == (i-1)) && (mw(vec_λnew[i,k,:]) == 0)
@@ -333,13 +321,9 @@ end
 
 #Cost function of free variables, optimized with precomputed zeros vector
 function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
-    cn = round(Int, (n-n_min)/q + 1)
-    @views vec_knew = arr_vec_knew[cn]
-    @views vec_λnew = arr_vec_λnew[cn]
-    @views zeros_pos = arr_zeros_cached[cn]
     counter = 1
     for k in 1:vλ
-        if zeros_pos[k] == 1
+        if zeros_cached[k] == 1
             codewords_copy[k] = free_vars[counter]
             counter += 1
         else
@@ -349,7 +333,7 @@ function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, v�
 
     for i in 2:d
         for k in 1:vλ
-            if zeros_pos[(k+(i-1)*vλ)] == 1
+            if zeros_cached[(k+(i-1)*vλ)] == 1
                 codewords_copy[(k+(i-1)*vλ)] = codewords_copy[Int(vec_knew[i,k])]
             else
                 codewords_copy[(k+(i-1)*vλ)] = 0
@@ -364,8 +348,6 @@ callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return fal
 
 function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
-    cn = round(Int, (n-n_min)/q + 1)
-    @views vec_knew = arr_vec_knew[cn]
     num_var = Int(vλ / q)
     codewords_copy = zeros(ComplexF64, d*vλ)
     costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
@@ -381,49 +363,36 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
                             )
         #end   
     minval = res.minimum
-    return minval
+    minc = res.minimizer
+    return [minval, minc]
 end
 
 const n = parse(Int64, ARGS[1])
 const t = parse(Int64, ARGS[2])
-const count = parse(Int64, ARGS[3])
+const repcount = parse(Int64, ARGS[3])
 
 const q = 3;
 const d = 3;
-const n_min = 7;
-const n_max = 7;
-const range_n = n_min:q:n_max;
-const t_min = 1;
-const t_max = 1;
-const range_t = t_min:t_max;
-const reps = 50;
 const optim_soltol = 1e-18;
-const aλ = [partitions_into_q_parts(n,q) for n=range_n];
-const aμ = [partitions_into_q_parts(2t,q) for t=range_t];
-const aν = [partitions_into_q_parts(2t,q) for t=range_t];
-const avλ = getindex.(map(size, aλ), 1);
-const avμ = getindex.(map(size, aμ), 1);
-const avν = getindex.(map(size, aν), 1);
-const arr_binoms_diff_cached = [binoms_diff_precompute(range_n[cn], q, range_t[ct], aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct]) for cn=eachindex(range_n), ct=eachindex(range_t)];
-const arr_nonneg_cached = [nonneg_precompute(q, aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct]) for cn=eachindex(range_n), ct=eachindex(range_t)];
-const arr_vec_knew = [vknew(range_n[cn], q, d, aλ[cn], avλ[cn])[1] for cn=eachindex(range_n)];
-const arr_vec_λnew = [vknew(range_n[cn], q, d, aλ[cn], avλ[cn])[2] for cn=eachindex(range_n)];
-const arr_zeros_cached = [zeros_precompute(range_n[cn], q, d, aλ[cn], avλ[cn]) for cn=eachindex(range_n)];
-const arr_pos_cached = [partition_pos_precompute(range_n[cn], q, d, range_t[ct], aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct]) for cn=eachindex(range_n), ct=eachindex(range_t)];
+const λ = partitions_into_q_parts(n,q);
+const μ = partitions_into_q_parts(2t,q);
+const ν = partitions_into_q_parts(2t,q);
+const vλ = size(λ)[1];
+const vμ = size(μ)[1];
+const vν = size(ν)[1];
+const binoms_diff_cached = binoms_diff_precompute(n, q, t, λ, μ, ν, vλ, vμ, vν);
+const nonneg_cached = nonneg_precompute(q, λ, μ, ν, vλ, vμ, vν);
+const vec_knew = vknew(n, q, d, λ, vλ)[1];
+const vec_λnew = vknew(n, q, d, λ, vλ)[2];
+const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
+const zeros_cached = zeros_precompute(n, q, d, λ, vλ);
 
-combos = Iterators.product(1:reps, eachindex(range_n), eachindex(range_t));
-all_results = Folds.map(((i,cn,ct),) -> ((range_n[cn],range_t[ct]), ruskai_optim(range_n[cn], q, d, range_t[ct], aλ[cn], aμ[ct], aν[ct], avλ[cn], avμ[ct], avν[ct])), combos);
+results = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
+res_minimum = results[1];
+res_minimizer = results[2];
 
-for list_end in reps:reps:length(all_results)
-    minlist = getindex.(all_results[(list_end-reps+1):list_end], 2);
-    min_val, min_loc = Folds.findmin(minlist);
-    (ln,lt) = all_results[list_end][1];
-    valout = "n=$ln, q=d=$q, t=$lt, start points = $reps, optimization callback = $optim_soltol, optimization minimum = $min_val";
-    println(valout)
-#=     open("Qudit_Ruskai/cluster_output.txt", "a") do file 
-        write(file, valout, "\n")
-    end =#
-end
+filestring = "data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
+save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol)
 
 #FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
