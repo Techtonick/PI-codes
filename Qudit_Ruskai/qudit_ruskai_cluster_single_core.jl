@@ -5,19 +5,19 @@ using Optim
 using LineSearches
 using Combinatorics
 #using Plots; plotlyjs(size = (700, 700))
-using PlotlyJS
-using BenchmarkTools
+# using PlotlyJS
+# using BenchmarkTools
 using JLD2
-using Base.Threads
+# using Base.Threads
 using SpecialFunctions
 #gr(size = (700, 700))
-using Transducers
-using Folds
-using OnlineStats
-using FLoops
-using MicroCollections
-using BangBang 
-using FileIO
+# using Transducers
+# using Folds
+# using OnlineStats
+# using FLoops
+# using MicroCollections
+# using BangBang 
+# using FileIO
 
 function partitions_into_q_parts(n, q)
     # Start with an array of q parts filled with zeros
@@ -356,7 +356,7 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
             res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
                         Optim.Options(iterations=10000,
                                     g_tol=1e-8,
-                                    f_tol=1e-8,
+                                    f_reltol=1e-8,
                                     allow_f_increases=true,
                                     show_trace=false,
                                     callback=callback)
@@ -398,7 +398,7 @@ results = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 res_minimum = results[1];
 res_minimizer = results[2];
 
-filestring = "data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
+filestring = "data/data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
 save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol)
 
 #FOR n=25, q=d=3, t=2:
