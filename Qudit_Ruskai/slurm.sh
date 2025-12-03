@@ -2,8 +2,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=48
 #SBATCH --partition=genoa
-#SBATCH --time=40:00:00
-#SBATCH --job-name="qudit ruskai codes"
+#SBATCH --time=10:00:00
+#SBATCH --job-name="qudit_ruskai_codes"
 #SBATCH --output=data/outs/qudit_ruskai_%j.out
 #SBATCH --error=data/outs/qudit_ruskai_%j.err.out
 #SBATCH --mail-type=END,FAIL
