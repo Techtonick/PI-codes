@@ -367,8 +367,15 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     return [minval, minc]
 end
 
-const n = parse(Int64, ARGS[1])
-const t = parse(Int64, ARGS[2])
+const t = parse(Int64, ARGS[1])
+
+const smallrange = 4:3:34
+const bigrange = 25:3:55
+
+const nrange = t < 3 ? smallrange : bigrange 
+
+const n = nrange[parse(Int64, ARGS[2])]
+
 const repcount = parse(Int64, ARGS[3])
 
 const q = 3;
