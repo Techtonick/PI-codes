@@ -5,19 +5,22 @@ using Optim
 using LineSearches
 using Combinatorics
 #using Plots; plotlyjs(size = (700, 700))
-using PlotlyJS
-using BenchmarkTools
+# using PlotlyJS
+# using BenchmarkTools
 using JLD2
-using Base.Threads
+# using Base.Threads
 using SpecialFunctions
 #gr(size = (700, 700))
-using Transducers
-using Folds
-using OnlineStats
-using FLoops
-using MicroCollections
-using BangBang 
-using FileIO
+# using Transducers
+# using Folds
+# using OnlineStats
+# using FLoops
+# using MicroCollections
+# using BangBang 
+# using FileIO
+
+@show Threads.nthreads()
+LinearAlgebra.BLAS.set_num_threads(Threads.nthreads())
 
 function partitions_into_q_parts(n, q)
     # Start with an array of q parts filled with zeros
@@ -259,6 +262,68 @@ function rule4_5(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν)
 
 end
 
+function rule4_5_fast(n, q, d, t, codewords, λ, μ, ν, vλ, vμ, vν, tmp4, tmp5)
+
+    local_num_var_params = length(codewords)
+    local_codeword_length = Int(local_num_var_params ÷ d)
+
+    outval = 0.0
+
+    @inbounds for i in 1:d-1
+        @views codewords_i = codewords[(1 + (i-1)*local_codeword_length) : local_codeword_length*i]
+
+        @inbounds for j in i+1:d
+            @views codewords_j = codewords[(1 + (j-1)*local_codeword_length) : local_codeword_length*j]
+
+            @inbounds for k in 1:vμ
+                
+                # zero tmp4/tmp5
+                fill!(tmp4, zero(eltype(tmp4)))
+                fill!(tmp5, zero(eltype(tmp5)))
+
+                # loop over iλ and update tmp4/tmp5 across all l values only when nonneg_cached==1 for this (iλ,k)
+                for iλ in 1:vλ
+
+                    # Test first-l entry only
+                    if nonneg_cached[iλ, 1, k] == 0
+                        continue
+                    end
+
+                    code_i_iλ = codewords_i[iλ]
+                    code_j_iλ = codewords_j[iλ]
+
+                    if code_i_iλ == 0 && code_j_iλ == 0
+                        continue
+                    end
+
+                    # loop over l and update tmp4/tmp5
+                    @inbounds @simd for l in 1:vν
+                        pos = pos_cached[iλ, l, k]
+                        binomval = binoms_diff_cached[iλ, l, k]
+
+                        code_j_pos = codewords_j[pos]
+                        code_i_pos = codewords_i[pos]
+
+                        # sum
+                        tmp4[l] += @fastmath code_i_iλ' * code_j_pos * binomval
+                        tmp5[l] += @fastmath (code_i_iλ' * code_i_pos - code_j_iλ' * code_j_pos) * binomval
+                    end
+                end
+
+                s1 = 0.0
+                @inbounds @simd for l in 1:vν
+                    s1 += abs2(tmp4[l])
+                    s1 += abs2(tmp5[l])
+                end
+
+                outval += s1
+            end
+        end
+    end
+
+    return outval
+end
+
 function replace_element(arr, new_element, pos)
     outarr = []
     for i in eachindex(arr)
@@ -320,7 +385,7 @@ function costr(n, q, d, t, codewords, codewords_copy, λ, μ, ν, vλ, vμ, vν)
 end
 
 #Cost function of free variables, optimized with precomputed zeros vector
-function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν, tmp4, tmp5)
     counter = 1
     for k in 1:vλ
         if zeros_cached[k] == 1
@@ -341,7 +406,8 @@ function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, v�
         end
     end   
 
-    return rules1(n,q,d,codewords_copy) + rule4_5(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν)
+    return rules1(n,q,d,codewords_copy) + rule4_5_fast(n,q,d,t,codewords_copy,λ,μ,ν,vλ,vμ,vν,tmp4,tmp5)
+
 end
 
 callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
@@ -350,21 +416,22 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
     num_var = Int(vλ / q)
     codewords_copy = zeros(ComplexF64, d*vλ)
-    costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    tmp4 = zeros(eltype(codewords_copy), vν); # accumulates λsum_rule4 for each l
+    tmp5 = zeros(eltype(codewords_copy), vν); # accumulates λsum_rule5 for each l
+    costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν,tmp4,tmp5)
         free_cb = normalize(rand(ComplexF64, num_var))
         #@time begin
             res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
                         Optim.Options(iterations=10000,
                                     g_tol=1e-8,
-                                    f_tol=1e-8,
+                                    f_reltol=1e-8,
                                     allow_f_increases=true,
                                     show_trace=false,
-                                    callback=callback)
+                                    callback=callback,
+                                    time_limit = 60 * 60 * 24 * 4.5) # put a time limit of 4.5 days (units of seconds)
                             )
         #end   
-    minval = res.minimum
-    minc = res.minimizer
-    return [minval, minc]
+    return res
 end
 
 const t = parse(Int64, ARGS[1])
@@ -394,12 +461,13 @@ const vec_λnew = vknew(n, q, d, λ, vλ)[2];
 const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 const zeros_cached = zeros_precompute(n, q, d, λ, vλ);
 
-results = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
-res_minimum = results[1];
-res_minimizer = results[2];
+res = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 
-filestring = "data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
-save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol)
+res_minimum = res.minimum
+res_minimizer = res.minimizer
+
+filestring = "data/data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
+save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res)
 
 #FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
@@ -520,3 +588,27 @@ end =#
 #println(" ")
 #println(cs)
 #println(costrtest(n, q, d, t, cs, λ, μ, ν, vλ, vμ, vν))
+
+
+### benchmarking and debugging for rule4_5_fast
+
+# tmp4 = zeros(eltype(codewords_copy), vν);    # accumulates λsum_rule4 for each l
+# tmp5 = zeros(eltype(codewords_copy), vν);   # accumulates λsum_rule5 for each l
+
+# rule4_5(n, q, d, t, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+# rule4_5_fast(n, q, d, t, codewords_copy, λ, μ, ν, vλ, vμ, vν, tmp4, tmp5)
+# rule4_5(n, q, d, t, codewords_copy, λ, μ, ν, vλ, vμ, vν) - rule4_5_fast(n, q, d, t, codewords_copy, λ, μ, ν, vλ, vμ, vν, tmp4, tmp5)
+
+# # @btime rule4_5($n, $q, $d, $t, $codewords_copy, $λ, $μ, $ν, $vλ, $vμ, $vν)
+# # @btime rule4_5_fast($n, $q, $d, $t, $codewords_copy, $λ, $μ, $ν, $vλ, $vμ, $vν, $tmp4, $tmp5)
+
+# function testf()
+#     for i in 1:2000
+#         costcl(free_cb)
+#     end
+# end
+# testf()
+# @profview testf()
+
+# @btime costcl($free_cb)
+# @btime costcl($free_cb)
