@@ -427,7 +427,8 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
                                     f_reltol=1e-8,
                                     allow_f_increases=true,
                                     show_trace=false,
-                                    callback=callback)
+                                    callback=callback,
+                                    time_limit = 60 * 60 * 24 * 4.5) # put a time limit of 4.5 days (units of seconds)
                             )
         #end   
     minval = res.minimum
