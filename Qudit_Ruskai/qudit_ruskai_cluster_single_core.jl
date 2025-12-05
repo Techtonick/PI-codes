@@ -431,9 +431,7 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
                                     time_limit = 60 * 60 * 24 * 4.5) # put a time limit of 4.5 days (units of seconds)
                             )
         #end   
-    minval = res.minimum
-    minc = res.minimizer
-    return [minval, minc]
+    return res
 end
 
 const t = parse(Int64, ARGS[1])
@@ -463,12 +461,13 @@ const vec_λnew = vknew(n, q, d, λ, vλ)[2];
 const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 const zeros_cached = zeros_precompute(n, q, d, λ, vλ);
 
-results = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
-res_minimum = results[1];
-res_minimizer = results[2];
+res = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
+
+res_minimum = res.minimum
+res_minimizer = res.minimizer
 
 filestring = "data/data_n$(n)_t$(t)_repnumber$(repcount).jld2" 
-save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol)
+save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res)
 
 #FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
