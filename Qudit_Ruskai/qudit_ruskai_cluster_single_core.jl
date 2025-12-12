@@ -410,7 +410,20 @@ function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, v�
 
 end
 
-callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
+iterations_max = 10000; 
+cache_value = zeros(Float64,iterations_max+1); 
+cache_iteration = zeros(Int64,iterations_max+1); 
+cache_gnorm = zeros(Float64,iterations_max+1);
+
+function callback(state)
+
+    cache_value[state.iteration+1] = state.value 
+    cache_iteration[state.iteration+1] = state.iteration
+    cache_gnorm[state.iteration+1] = state.g_norm
+
+    (abs(state.value) < optim_soltol) ? (return true) : (return false) 
+
+end 
 
 function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     #Preallocate before loops
@@ -423,7 +436,7 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
         free_cb = fileloaded["minimizer"]
         #@time begin
             res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
-                        Optim.Options(iterations=10000,
+                        Optim.Options(iterations=iterations_max,
                                     g_tol=1e-8,
                                     f_reltol=1e-8,
                                     allow_f_increases=true,
@@ -471,7 +484,7 @@ res_minimum = res.minimum
 res_minimizer = res.minimizer
 
 filestring = "data/data_n$(n)_t$(t)_repnumber$(repcount)_2.jld2" 
-save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res)
+save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res,"cache_value",cache_value,"cache_iteration",cache_iteration,"cache_gnorm",cache_gnorm)
 
 #FOR n=25, q=d=3, t=2:
 #LBFGS takes 5s for one step of optim
