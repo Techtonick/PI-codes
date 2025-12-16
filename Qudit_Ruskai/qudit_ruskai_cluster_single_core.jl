@@ -438,7 +438,7 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
         #@time begin
             res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
                         Optim.Options(iterations=iterations_max,
-                                    g_tol=1e-8,
+                                    g_tol=g_tol,
                                     f_reltol=1e-8,
                                     allow_f_increases=true,
                                     show_trace=false,
@@ -465,6 +465,7 @@ const repcount = parse(Int64, ARGS[3])
 
 const q = 3;
 const d = 3;
+const g_tol = 1e-18;
 const optim_soltol = 1e-18;
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
@@ -484,7 +485,7 @@ res = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 res_minimum = res.minimum
 res_minimizer = res.minimizer
 
-filestring = "data/t$(t)/data_n$(n)_t$(t)_repnumber$(repcount)_saveres.jld2" 
+filestring = "data/t$(t)/data_n$(n)_t$(t)_repnumber$(repcount)_saveres_gtol$(g_tol).jld2" 
 save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res,"cache_value",cache_value,"cache_iteration",cache_iteration,"cache_gnorm",cache_gnorm)
 
 #FOR n=25, q=d=3, t=2:
