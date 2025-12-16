@@ -10,6 +10,7 @@ using Combinatorics
 using JLD2
 # using Base.Threads
 using SpecialFunctions
+using Dates
 #gr(size = (700, 700))
 # using Transducers
 # using Folds
@@ -432,8 +433,8 @@ function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
     tmp4 = zeros(eltype(codewords_copy), vν); # accumulates λsum_rule4 for each l
     tmp5 = zeros(eltype(codewords_copy), vν); # accumulates λsum_rule5 for each l
     costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν,tmp4,tmp5)
-        # free_cb = normalize(rand(ComplexF64, num_var))
-        free_cb = fileloaded["minimizer"]
+        free_cb = normalize(rand(ComplexF64, num_var))
+        # free_cb = fileloaded["minimizer"]
         #@time begin
             res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()),
                         Optim.Options(iterations=iterations_max,
@@ -459,8 +460,8 @@ const n = nrange[parse(Int64, ARGS[2])]
 
 const repcount = parse(Int64, ARGS[3])
 
-filestring = "./data/data_n$(n)_t$(t)_repnumber$(repcount).jld2";
-fileloaded = load(filestring);
+# filestring = "./data/data_n$(n)_t$(t)_repnumber$(repcount).jld2";
+# fileloaded = load(filestring);
 
 const q = 3;
 const d = 3;
@@ -483,7 +484,7 @@ res = ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 res_minimum = res.minimum
 res_minimizer = res.minimizer
 
-filestring = "data/data_n$(n)_t$(t)_repnumber$(repcount)_2.jld2" 
+filestring = "data/t$(t)/data_n$(n)_t$(t)_repnumber$(repcount)_saveres.jld2" 
 save(filestring,"t",t,"n",n,"repnumber",repcount,"minimum",res_minimum,"minimizer",res_minimizer,"optim_soltol",optim_soltol,"res",res,"cache_value",cache_value,"cache_iteration",cache_iteration,"cache_gnorm",cache_gnorm)
 
 #FOR n=25, q=d=3, t=2:
