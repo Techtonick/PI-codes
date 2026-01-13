@@ -256,6 +256,7 @@ const d = parse(Int64, ARGS[3])
 const iter = parse(Int64, ARGS[4])
 
 const t = 1;
+
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
 const ν = partitions_into_q_parts(2t,q);
@@ -305,6 +306,6 @@ minx0 = res_loop_minimizer[minloc]
 
 println("saving.")
 
-save("data/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0)
+save("data/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q)
 
 println("done.")
