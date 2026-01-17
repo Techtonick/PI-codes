@@ -286,9 +286,9 @@ x0 = normalize(rand(num_var_params)) # this is for real
 res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
 # res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), 
             Optim.Options(iterations=100000,
-                        g_tol=1e-30,
-                        f_abstol=1e-30,
-                        f_reltol=1e-30,
+                        g_tol=1e-15,
+                        f_abstol=1e-15,
+                        f_reltol=1e-15,
                         allow_f_increases=true,
                         show_trace=false,
                         callback=callback,
@@ -305,3 +305,4 @@ println("saving.")
 save("data/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q,"stoppedby",stoppedby,"optimiters",optimiters)
 
 println("done.")
+    
