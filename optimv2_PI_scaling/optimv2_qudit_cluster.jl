@@ -253,8 +253,7 @@ const n = parse(Int64, ARGS[1])
 const q = parse(Int64, ARGS[2])
 const d = parse(Int64, ARGS[3])
 const iter = parse(Int64, ARGS[4])
-
-const t = 1;
+const t = parse(Int64, ARGS[5])
 
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
@@ -265,15 +264,15 @@ const vν = size(ν)[1];
 const binoms_diff_cached = binoms_diff_precompute(n, q, t, λ, μ, ν, vλ, vμ, vν);
 const nonneg_cached = nonneg_precompute(q, λ, μ, ν, vλ, vμ, vν);
 const optim_soltol = 1e-15;
-const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
+const pos_cached = partition_pos_precompute(n, q, d, t, λ, μ, ν, vλ, vμ, vν);
 
 #Define cost function
-cost(c0) = abs(rules1(n,q,d,c0)) + rule4_5(n,q,d,t,c0,λ,μ,ν,vλ,vμ,vν)  
+cost(c0) = abs(rules1(n,q,d,c0)) + rule4_5(n,q,d,t,c0,λ,μ,ν,vλ,vμ,vν);
 
 callback(state) = (abs(state.f_x) < optim_soltol ? (return true) : (return false) );
 
-const codeword_length = size(partitions_into_q_parts(n,q))[1]
-const num_var_params = d * codeword_length
+const codeword_length = size(partitions_into_q_parts(n,q))[1];
+const num_var_params = d * codeword_length;
 
 res_loop_minimum = []; res_loop_minimizer = []; thread_arr = [];
 
