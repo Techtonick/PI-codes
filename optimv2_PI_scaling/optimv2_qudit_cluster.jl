@@ -48,10 +48,10 @@ x0 = normalize(rand(num_var_params)) # this is for real
 
 res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
 # res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), 
-            Optim.Options(iterations=100000,
-                        g_tol=1e-17,
-                        f_abstol=1e-17,
-                        f_reltol=1e-17,
+            Optim.Options(iterations=200000,
+                        g_tol=1e-20,
+                        f_abstol=1e-20,
+                        f_reltol=1e-20,
                         allow_f_increases=true,
                         show_trace=false,
                         callback=callback,
@@ -65,7 +65,7 @@ optimiters = res.iterations;
 
 println("saving. minimum was $minval")
 
-save("data/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q,"stoppedby",stoppedby,"optimiters",optimiters)
+save("data/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q,"stoppedby",stoppedby,"optimiters",optimiters,"res",res)
 
 println("done.")
     
