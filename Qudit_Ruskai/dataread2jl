@@ -1,0 +1,117 @@
+using JLD2 
+using Optim
+using PyPlot
+
+colorvec = ["tab:blue";"tab:orange";"tab:green";"tab:red";"tab:purple";"tab:brown";"tab:pink";"tab:gray";"tab:olive";"tab:cyan";"red"];
+bigrange = 25:3:55
+smallrange = 4:3:34
+
+# plot minimum vs n 
+tval = 3;
+dir = "/Users/liambond/Nextcloud/Qudit_PI/data/t$(tval)/";
+filelist = readdir(dir)[contains.(readdir(dir),"jld2")]
+g_tol = 1e-18; 
+
+plt.close() 
+for tval in 1:3 
+
+    minvec = []; nvec = []; 
+    for i in eachindex(filelist) 
+        if contains(filelist[i],"t$(tval)") && contains(filelist[i],"gtol$(g_tol)")
+                nval = load(dir*filelist[i])["n"]
+                minval = load(dir*filelist[i])["minimum"]
+                push!(minvec,minval)
+                push!(nvec,nval)
+                if nval == 28 
+                    @show minval
+                end 
+        end
+    end 
+
+    ## 
+
+    
+    plt.scatter(nvec,minvec)
+    plt.yscale("log")
+    plt.xlabel("n")
+    plt.ylabel("minimum")
+    # plt.title("t = $(tval)")
+    (tval == 3 || tval == 2) ? plt.xlim([5;80]) : nothing 
+    plt.ylim([10^(-18);1^(-1)])
+    plt.legend(["t=1","t=2","t=3"])
+
+end 
+
+plt.hlines(10^(-15),0,10000,color="black",ls="dashed")
+plt.hlines(10^(-16),0,10000,color="black",ls="dashed")
+
+plt.gcf()
+
+
+## 
+
+# plot number of interations vs n 
+
+itervec = []; nvec = []; 
+plt.close() 
+for i in eachindex(filelist) 
+    if contains(filelist[i],"gtol$(g_tol)")
+        push!(itervec,load(dir*filelist[i])["res"].iterations)
+        push!(nvec,load(dir*filelist[i])["n"])
+    end 
+end 
+
+@show sum(itervec .== 10000) 
+@show length(filelist)
+
+unique_n = sort(unique(nvec));
+grouped_data = [itervec[nvec .== n] for n in unique_n];
+
+fig, ax = subplots();
+parts = ax.violinplot(grouped_data, positions=unique_n, showmeans=false, showmedians=false);
+ax.scatter(nvec,itervec,s=20);
+
+ax.set_xlabel("n");
+ax.set_ylabel("iterations");
+plt.xlim([5;80])
+plt.gcf()
+
+
+##
+
+# plot traces vs iterations 
+labelflag = 0.0; 
+if tval == 2 
+    labelflag = zeros(length(smallrange))
+elseif tval == 3 
+    labelflag = zeros(length(bigrange))
+end
+
+plt.close()
+for i in eachindex(filelist)
+    if contains(filelist[i],"gtol$(g_tol)")
+        fileloaded = load(dir*filelist[i]);
+        iterations = fileloaded["res"].iterations;
+        cache_iteration = fileloaded["cache_iteration"];
+        cache_value = fileloaded["cache_value"];
+        nval = fileloaded["n"]
+        if tval == 2
+            n_iter = findfirst(nval .== smallrange)
+        elseif tval == 3 
+            n_iter = findfirst(nval .== bigrange)
+        end 
+        if labelflag[n_iter] == 0 
+            plt.plot(cache_iteration[1:iterations+1],cache_value[1:iterations+1],color=colorvec[n_iter],label="n=$(nval)")
+            labelflag[n_iter] = 1 
+        else
+            plt.plot(cache_iteration[1:iterations+1],cache_value[1:iterations+1],color=colorvec[n_iter])
+        end            
+    end 
+end
+# plt.hlines(10^(-15),0,10000,color="black",ls="dashed")
+# plt.hlines(10^(-16),0,10000,color="black",ls="dashed")
+plt.yscale("log")
+plt.xlabel("iterations")
+plt.ylabel("cost function value")
+plt.legend()
+display(plt.gcf())
