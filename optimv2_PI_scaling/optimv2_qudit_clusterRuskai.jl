@@ -98,21 +98,49 @@ function padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, v�
 
 end
 
+# function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
+
+#     #Preallocate before loops
+#     num_var = Int(vλ / q)
+
+#     # codewords_copy = zeros(d*vλ)
+#     codewords_copy = zeros(BigFloat,d*vλ)
+
+#     costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+            
+#     free_cb = normalize(rand(BigFloat,num_var))
+#     # free_cb = normalize(rand(num_var))
+
+#     res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()), 
+#                 Optim.Options(iterations=100000,
+#                             g_tol=1e-20,
+#                             f_reltol=0.0,
+#                             f_abstol=0.0,
+#                             allow_f_increases=true,
+#                             show_trace=false,
+#                             callback=callback,
+#                             time_limit = 60 * 60 * 24 * 1) # time limit of 1 days (units of seconds)
+#                     )
+
+#     return res
+
+# end
+
 function ruskai_optim(n, q, d, t, λ, μ, ν, vλ, vμ, vν)
 
     #Preallocate before loops
     num_var = Int(vλ / q)
-
-    # codewords_copy = zeros(d*vλ)
-    codewords_copy = zeros(BigFloat,d*vλ)
-
-    costcl(free_vars) = padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    
+    function costcl(free_vars)
+        codewords_copy = zeros(eltype(free_vars), d*vλ)
+        padded_costr(n, q, d, t, free_vars, codewords_copy, λ, μ, ν, vλ, vμ, vν)
+    end
         
-    free_cb = normalize(rand(BigFloat,num_var))
-    # free_cb = normalize(rand(num_var))
+    # free_cb = normalize(rand(BigFloat,num_var))
+    free_cb = normalize(rand(num_var))
 
-    res = Optim.optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()), 
-                Optim.Options(iterations=100000,
+    res = optimize(costcl, free_cb, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
+                Optim.Options(iterations=300000,
                             g_tol=1e-20,
                             f_reltol=0.0,
                             f_abstol=0.0,
@@ -137,4 +165,4 @@ optimiters = res.iterations;
 
 println("saving. minimum was $minval. exit code was $([k for (k, v) in pairs(stoppedby) if v])")
 
-save("data/Ruskai_BigFloat/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q,"stoppedby",stoppedby,"optimiters",optimiters,"res",res)
+save("data/Ruskai_FloatAutoDiff/n$(n)_q$(q)_d$(d)_t$(t)/iter$(iter).jld2","minval",minval,"minx0",minx0,"n",n,"t",t,"d",d,"iter",iter,"q",q,"stoppedby",stoppedby,"optimiters",optimiters,"res",res)
