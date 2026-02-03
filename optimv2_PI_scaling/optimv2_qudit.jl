@@ -14,6 +14,9 @@ using BenchmarkTools
 using JLD2
 using Base.Threads
 using SpecialFunctions
+using ADTypes: AutoForwardDiff, AutoZygote, AutoReverseDiff
+using Zygote
+using ReverseDiff
 
 # n = 2; # number of physical qudits 
 # q = 2; # physical qudit dimension 
@@ -307,10 +310,62 @@ end
 
 ### ---------------------- Optimisation Code ---------------------- ### 
 
-const n = 37;
-const q = 2;
-const d = 2;
-const t = 3;
+# d=2,t=1, real codewords 
+
+# q=2: n=7, can fix 2 zeros
+# q=3: n=7, can fix 12 zeros
+# q=4: n=7, can fix 60 zeros, n=6, can fix 9 zeros 
+# q=5: n=soln@6, nothing@5
+# q=6: n=soln@6, nothing@5 
+# q=7: n=soln@6, nothing@5
+# q=8: n=soln@6, nothing@5 
+# q=9, nothing@5
+# q=16, nothing@5 (?) 
+# singleton: n ≥ 5 
+
+# can you get n=1? probably not bc erasure errors. but what about n=2? might be n=5 from singleton bound? 
+# same of different soln each time 
+# can they be made exact 
+# what is the total dimension? 
+
+# fix smallest entry to be zero. 
+
+# d=2,t=2 
+# q=2: n=19
+# q=3: n=??
+
+# singleton: n ≥ 9 
+
+# singleton (independent of q,d): n ≥ 4t + 1 
+
+
+
+# d=3, t=1, real codewords
+# yingkai: n = 18 
+# q=2: n=14 (tight) 
+# q=3: n=9 (tight)
+# q=4: n=8 (tight)
+# q=5: n=7
+
+
+# d=4, t=1, real codewords 
+# yingkai: n=27 
+# q=2: n=19 (tight) 
+# q=3: n16
+
+
+
+# d=4, t=1, real codewords 
+
+# codelength = 120, codelenth = 84, so > 36 free params? 
+
+# TODO: make table, play with zeros, put numbers in .txt file 
+
+
+# const n = 6;
+# const q = 2;
+# const d = 2;
+const t = 1;
 const λ = partitions_into_q_parts(n,q);
 const μ = partitions_into_q_parts(2t,q);
 const ν = partitions_into_q_parts(2t,q);
@@ -337,16 +392,16 @@ callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return fal
 
 const codeword_length = size(partitions_into_q_parts(n,q))[1]
 const num_var_params = d * codeword_length
-#= x0 = rand(num_var_params)
-cost(x0) =#
-# Optimize
+
 res_loop_minimum = []; res_loop_minimizer = []; thread_arr = [];
 println("START")
-@threads for i in 1:256
+for i in 1:1
     x0 = normalize(rand(num_var_params)) # this is for real 
-    #x0 = normalize(rand(ComplexF64,num_var_params)) # for Vlad: this is complex 
-    res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), #LBFGS(linesearch=LineSearches.BackTracking()),
-                Optim.Options(iterations=100000,
+    # x0 = normalize(rand(ComplexF64,num_var_params)) # for Vlad: this is complex 
+
+    res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
+    # res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), 
+                Optim.Options(iterations=10000,
                             g_tol=1e-30,
                             f_tol=1e-30,
                             allow_f_increases=true,
@@ -361,13 +416,11 @@ end
 minval,minloc = findmin(res_loop_minimum)
 minx0 = res_loop_minimizer[minloc]
 
-@show minval
-println(thread_arr)
-
-#minval = 3.187052164707976e-8 for n=36,t=3
-#minval = 7.274001751452536e-10 for n=37,t=3
-
-#@show minx0
+plt.close()
+# for i in 1:q 
+plt.plot(real.(minx0[1:codeword_length]))
+plt.plot(real.(minx0[codeword_length+1:2codeword_length]))
+display(plt.gcf())
 
 #= @threads for i = 1:10
     arr[i] = Threads.threadid()
@@ -516,3 +569,10 @@ cost(yingkai_test) =#
 oneL = zeroL .+ 2
 vlad_test = [zeroL;oneL]
 cost(vlad_test) =#
+
+
+# save 
+if minval < 1e-14 && (codeword_length*d == length(minx0))
+    writedlm("KL/n=$(n)_q=$(q)_d=$(d)_t=$(t)_codeword1_minval$(minval).txt", minx0[1:codeword_length])
+    writedlm("KL/n=$(n)_q=$(q)_d=$(d)_t=$(t)_codeword2_minval$(minval).txt", minx0[codeword_length+1:2codeword_length])
+end 

@@ -220,7 +220,8 @@ const optim_soltol = 1e-15;
 # Define cost function  
 cost(x) = abs(rules1(n,q,d,x)) + rule4_5(n,q,d,t,x,λ,μ,ν,vλ,vμ,vν)
 
-callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
+# callback(state) = (abs(state.value) < optim_soltol ? (return true) : (return false) );
+callback(state) = (abs(state.f_x) < optim_soltol ? (return true) : (return false) );
 
 const codeword_length = size(partitions_into_q_parts(n,q))[1]
 const num_var_params = d * codeword_length
@@ -237,7 +238,7 @@ println("START")
                             g_tol=1e-30,
                             f_tol=1e-30,
                             allow_f_increases=true,
-                            show_trace=true,
+                            show_trace=false,
                             callback=callback)
                     )
     println("iteration $i: min val = $(res.minimum)")
