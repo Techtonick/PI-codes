@@ -39,12 +39,12 @@ const num_var_params = d * codeword_length;
 
 println("start optimization.")
 
-# x0 = normalize(rand(num_var_params)) # this is for real 
+x0 = normalize(rand(num_var_params)) # this is for real 
 # x0 = normalize(rand(ComplexF64,num_var_params)) # for Vlad: this is complex 
-x0 = normalize(rand(Complex{BigFloat},num_var_params)); # for Vlad: this is complex 
+# x0 = normalize(rand(Complex{BigFloat},num_var_params)); # for Vlad: this is complex 
 
-# res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
-res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), 
+res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), autodiff = AutoReverseDiff(),
+# res = optimize(cost, x0, LBFGS(linesearch=LineSearches.BackTracking()), 
             Optim.Options(iterations=200000,
                         g_tol=1e-20,
                         f_abstol=0,
